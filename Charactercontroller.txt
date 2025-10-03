@@ -1,0 +1,104 @@
+##CharacterController.cs""
+
+using UnityEngine;
+
+[RequireComponent(typeof(SpriteRenderer))]
+[RequireComponent(typeof(Collider2D))]
+public class CharacterController : MonoBehaviour
+{
+    [Header("Movimiento")]
+    public float speed = 5f;
+
+    [Header("Cámara")]
+    public Camera cam;
+    public float camSmoothTime = 0.12f;
+    public Vector3 camOffset = new Vector3(0f, 0f, -10f);
+
+    [Header("Arrastra aquí el Tilemap de paredes")]
+    public Collider2D wallCollider; // aquí arrastras tu Tilemap de paredes
+
+    // Internos
+    private SpriteRenderer spriteRenderer;
+    private Vector2 input;
+    private Vector3 camVelocity = Vector3.zero;
+    private Collider2D myCollider;
+
+    void Awake()
+    {
+        spriteRenderer = GetComponent<SpriteRenderer>();
+        myCollider = GetComponent<Collider2D>();
+
+        if (cam == null)
+            cam = Camera.main;
+    }
+
+    void Start()
+    {
+        // Aseguramos que el jugador quede en Z = 0
+        Vector3 p = transform.position;
+        p.z = 0f;
+        transform.position = p;
+
+        // Aseguramos cámara
+        if (cam != null)
+            cam.transform.position = new Vector3(transform.position.x, transform.position.y, camOffset.z);
+    }
+
+    void Update()
+    {
+        // Lectura de input (WASD o flechas)
+        input.x = Input.GetAxisRaw("Horizontal");
+        input.y = Input.GetAxisRaw("Vertical");
+
+        // Volteo horizontal solo si hay movimiento horizontal
+        if (input.x > 0.01f) spriteRenderer.flipX = false;
+        else if (input.x < -0.01f) spriteRenderer.flipX = true;
+    }
+
+    void LateUpdate()
+    {
+        // Calculamos la siguiente posición
+        Vector3 delta = new Vector3(input.x * speed * Time.deltaTime, input.y * speed * Time.deltaTime, 0f);
+        Vector3 targetPos = transform.position + delta;
+
+        // Comprobamos si en la posición nueva habría colisión con el Tilemap de paredes
+        if (wallCollider == null || !IsCollidingWithWall(targetPos))
+        {
+            transform.position = targetPos;
+        }
+
+        // Forzar Z = 0 siempre
+        Vector3 pos = transform.position;
+        pos.z = 0f;
+        transform.position = pos;
+
+        // Cámara siguiendo con suavizado
+        if (cam != null)
+        {
+            Vector3 target = new Vector3(transform.position.x, transform.position.y, camOffset.z);
+            cam.transform.position = Vector3.SmoothDamp(cam.transform.position, target, ref camVelocity, camSmoothTime);
+        }
+    }
+
+    bool IsCollidingWithWall(Vector3 targetPos)
+    {
+        if (wallCollider == null) return false;
+
+        Bounds playerBounds = myCollider.bounds;
+        Vector2 size = playerBounds.size * 0.9f; // un poco más chico para evitar "pegarse"
+        Collider2D hit = Physics2D.OverlapBox(targetPos, size, 0f);
+
+        if (hit != null && (hit == wallCollider || hit.transform.IsChildOf(wallCollider.transform)))
+        {
+            return true;
+        }
+        return false;
+    }
+
+    void OnDrawGizmosSelected()
+    {
+        Gizmos.color = Color.red;
+        Gizmos.DrawWireCube(transform.position, GetComponent<Collider2D>().bounds.size);
+    }
+}
+
